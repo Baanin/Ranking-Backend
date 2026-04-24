@@ -41,6 +41,34 @@ model Tournament {
   entries        Participation[]
 }
 
+model AdminUser {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  passwordHash  String
+  name          String
+  role          String         @default("ADMIN") // ADMIN | MODERATOR | ...
+  permissions   String         @default("") // CSV of permission codes
+  isActive      Boolean        @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id         String     @id @default(cuid())
+  tokenHash  String     @unique
+  userId     String
+  user       AdminUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  userAgent  String?
+  createdAt  DateTime   @default(now())
+
+  @@index([userId])
+}
+
 model Participation {
   id           String     @id @default(cuid())
   tournamentId String
