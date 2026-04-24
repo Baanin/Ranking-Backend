@@ -5,7 +5,10 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import authRouter from '@/routes/auth';
 import adminUsersRouter from '@/routes/adminUsers';
+import adminTournamentsRouter from '@/routes/adminTournaments';
 import auditLogsRouter from '@/routes/auditLogs';
+import gamesRouter from '@/routes/games';
+import seasonsRouter from '@/routes/seasons';
 import playersRouter from '@/routes/players';
 import tournamentsRouter from '@/routes/tournaments';
 import rankingsRouter from '@/routes/rankings';
@@ -41,7 +44,10 @@ export function createApp() {
 
   app.use('/api/auth', authRouter);
   app.use('/api/admin/users', adminUsersRouter);
+  app.use('/api/admin/tournaments', adminTournamentsRouter);
   app.use('/api/admin/audit-logs', auditLogsRouter);
+  app.use('/api/games', gamesRouter);
+  app.use('/api/seasons', seasonsRouter);
   app.use('/api/players', playersRouter);
   app.use('/api/tournaments', tournamentsRouter);
   app.use('/api/rankings', rankingsRouter);
