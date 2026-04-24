@@ -1,4 +1,4 @@
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 import type { Request } from 'express';
 
 /**
@@ -19,7 +19,7 @@ export const loginRateLimiter = rateLimit({
     error: 'Too many login attempts. Please try again in a few minutes.',
   },
   keyGenerator: (req: Request): string => {
-    const ip = ipKeyGenerator(req.ip ?? 'unknown');
+    const ip = req.ip ?? 'unknown';
     const email = typeof req.body?.email === 'string' ? req.body.email.toLowerCase() : '';
     return email ? `${ip}|${email}` : ip;
   },
