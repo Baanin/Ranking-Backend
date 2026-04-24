@@ -2,8 +2,11 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { HttpError } from '@/middleware/errorHandler';
+import { requireAuth, requirePermission } from '@/middleware/auth';
 
 const router = Router();
+
+const canManagePlayers = [requireAuth, requirePermission('MANAGE_PLAYERS')];
 
 const playerCreateSchema = z.object({
   tag: z.string().min(2).max(32),
@@ -46,7 +49,7 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // POST /api/players
-router.post('/', async (req, res, next) => {
+router.post('/', canManagePlayers, async (req, res, next) => {
   try {
     const body = playerCreateSchema.parse(req.body);
     const player = await prisma.player.create({ data: body });
@@ -57,7 +60,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // DELETE /api/players/:id
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', canManagePlayers, async (req, res, next) => {
   try {
     await prisma.player.delete({ where: { id: req.params.id } });
     res.status(204).end();

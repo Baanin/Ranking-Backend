@@ -2,8 +2,11 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { HttpError } from '@/middleware/errorHandler';
+import { requireAuth, requirePermission } from '@/middleware/auth';
 
 const router = Router();
+
+const canManageTournaments = [requireAuth, requirePermission('MANAGE_TOURNAMENTS')];
 
 const tournamentCreateSchema = z.object({
   name: z.string().min(3),
@@ -52,7 +55,7 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // POST /api/tournaments
-router.post('/', async (req, res, next) => {
+router.post('/', canManageTournaments, async (req, res, next) => {
   try {
     const body = tournamentCreateSchema.parse(req.body);
     const tournament = await prisma.tournament.create({
@@ -65,7 +68,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // DELETE /api/tournaments/:id
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', canManageTournaments, async (req, res, next) => {
   try {
     await prisma.tournament.delete({ where: { id: req.params.id } });
     res.status(204).end();

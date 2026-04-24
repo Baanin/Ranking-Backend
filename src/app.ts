@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import authRouter from '@/routes/auth';
+import adminUsersRouter from '@/routes/adminUsers';
 import playersRouter from '@/routes/players';
 import tournamentsRouter from '@/routes/tournaments';
 import rankingsRouter from '@/routes/rankings';
@@ -27,6 +28,7 @@ export function createApp() {
   });
 
   app.use('/api/auth', authRouter);
+  app.use('/api/admin/users', adminUsersRouter);
   app.use('/api/players', playersRouter);
   app.use('/api/tournaments', tournamentsRouter);
   app.use('/api/rankings', rankingsRouter);
