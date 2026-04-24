@@ -16,6 +16,7 @@ import { parsePermissions } from '@/lib/permissions';
 import { AUDIT_ACTIONS, logAudit } from '@/lib/audit';
 import { HttpError } from '@/middleware/errorHandler';
 import { requireAuth } from '@/middleware/auth';
+import { loginRateLimiter, refreshRateLimiter } from '@/middleware/rateLimit';
 
 const router = Router();
 
@@ -36,7 +37,7 @@ function cookieOptions() {
 }
 
 // POST /api/auth/login
-router.post('/login', async (req, res, next) => {
+router.post('/login', loginRateLimiter, async (req, res, next) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
     const user = await prisma.adminUser.findUnique({ where: { email } });
@@ -98,7 +99,7 @@ router.post('/login', async (req, res, next) => {
 });
 
 // POST /api/auth/refresh
-router.post('/refresh', async (req, res, next) => {
+router.post('/refresh', refreshRateLimiter, async (req, res, next) => {
   try {
     const raw = req.cookies?.[REFRESH_COOKIE_NAME];
     if (!raw) throw new HttpError(401, 'No refresh token');
