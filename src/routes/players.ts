@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { HttpError } from '@/middleware/errorHandler';
 import { requireAuth, requirePermission } from '@/middleware/auth';
+import { AUDIT_ACTIONS, logAudit } from '@/lib/audit';
 
 const router = Router();
 
@@ -53,6 +54,12 @@ router.post('/', canManagePlayers, async (req, res, next) => {
   try {
     const body = playerCreateSchema.parse(req.body);
     const player = await prisma.player.create({ data: body });
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.PLAYER_CREATE,
+      entity: 'Player',
+      entityId: player.id,
+      metadata: { tag: player.tag, name: player.name, mainGame: player.mainGame },
+    });
     res.status(201).json({ data: player });
   } catch (e) {
     next(e);
@@ -62,7 +69,14 @@ router.post('/', canManagePlayers, async (req, res, next) => {
 // DELETE /api/players/:id
 router.delete('/:id', canManagePlayers, async (req, res, next) => {
   try {
+    const existing = await prisma.player.findUnique({ where: { id: req.params.id } });
     await prisma.player.delete({ where: { id: req.params.id } });
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.PLAYER_DELETE,
+      entity: 'Player',
+      entityId: req.params.id,
+      metadata: existing ? { tag: existing.tag, name: existing.name } : undefined,
+    });
     res.status(204).end();
   } catch (e) {
     next(e);

@@ -6,12 +6,14 @@ import {
   REFRESH_COOKIE_NAME,
   buildAccessPayload,
   consumeRefreshToken,
+  hashRefreshToken,
   issueRefreshToken,
   revokeRefreshToken,
   signAccessToken,
   verifyPassword,
 } from '@/lib/auth';
 import { parsePermissions } from '@/lib/permissions';
+import { AUDIT_ACTIONS, logAudit } from '@/lib/audit';
 import { HttpError } from '@/middleware/errorHandler';
 import { requireAuth } from '@/middleware/auth';
 
@@ -38,10 +40,28 @@ router.post('/login', async (req, res, next) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
     const user = await prisma.adminUser.findUnique({ where: { email } });
-    if (!user || !user.isActive) throw new HttpError(401, 'Invalid credentials');
+    if (!user || !user.isActive) {
+      await logAudit(req, {
+        action: AUDIT_ACTIONS.AUTH_LOGIN_FAILED,
+        entity: 'AdminUser',
+        actorEmail: email,
+        metadata: { reason: !user ? 'unknown_email' : 'inactive_account' },
+      });
+      throw new HttpError(401, 'Invalid credentials');
+    }
 
     const ok = await verifyPassword(password, user.passwordHash);
-    if (!ok) throw new HttpError(401, 'Invalid credentials');
+    if (!ok) {
+      await logAudit(req, {
+        action: AUDIT_ACTIONS.AUTH_LOGIN_FAILED,
+        entity: 'AdminUser',
+        entityId: user.id,
+        actorId: user.id,
+        actorEmail: user.email,
+        metadata: { reason: 'wrong_password' },
+      });
+      throw new HttpError(401, 'Invalid credentials');
+    }
 
     await prisma.adminUser.update({
       where: { id: user.id },
@@ -50,6 +70,14 @@ router.post('/login', async (req, res, next) => {
 
     const accessToken = signAccessToken(buildAccessPayload(user));
     const { raw: refreshToken } = await issueRefreshToken(user.id, req.headers['user-agent']);
+
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.AUTH_LOGIN_SUCCESS,
+      entity: 'AdminUser',
+      entityId: user.id,
+      actorId: user.id,
+      actorEmail: user.email,
+    });
 
     res.cookie(REFRESH_COOKIE_NAME, refreshToken, cookieOptions());
     res.json({
@@ -106,7 +134,26 @@ router.post('/refresh', async (req, res, next) => {
 router.post('/logout', async (req, res, next) => {
   try {
     const raw = req.cookies?.[REFRESH_COOKIE_NAME];
-    if (raw) await revokeRefreshToken(raw);
+    let actorId: string | null = null;
+    let actorEmail: string | null = null;
+    if (raw) {
+      const token = await prisma.refreshToken.findUnique({
+        where: { tokenHash: hashRefreshToken(raw) },
+        include: { user: true },
+      });
+      if (token) {
+        actorId = token.user.id;
+        actorEmail = token.user.email;
+      }
+      await revokeRefreshToken(raw);
+    }
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.AUTH_LOGOUT,
+      entity: actorId ? 'AdminUser' : undefined,
+      entityId: actorId ?? undefined,
+      actorId,
+      actorEmail,
+    });
     res.clearCookie(REFRESH_COOKIE_NAME, { ...cookieOptions(), maxAge: 0 });
     res.status(204).end();
   } catch (e) {

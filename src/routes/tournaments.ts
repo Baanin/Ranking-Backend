@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { HttpError } from '@/middleware/errorHandler';
 import { requireAuth, requirePermission } from '@/middleware/auth';
+import { AUDIT_ACTIONS, logAudit } from '@/lib/audit';
 
 const router = Router();
 
@@ -61,6 +62,12 @@ router.post('/', canManageTournaments, async (req, res, next) => {
     const tournament = await prisma.tournament.create({
       data: { ...body, date: new Date(body.date) },
     });
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.TOURNAMENT_CREATE,
+      entity: 'Tournament',
+      entityId: tournament.id,
+      metadata: { name: tournament.name, game: tournament.game, date: tournament.date },
+    });
     res.status(201).json({ data: tournament });
   } catch (e) {
     next(e);
@@ -70,7 +77,14 @@ router.post('/', canManageTournaments, async (req, res, next) => {
 // DELETE /api/tournaments/:id
 router.delete('/:id', canManageTournaments, async (req, res, next) => {
   try {
+    const existing = await prisma.tournament.findUnique({ where: { id: req.params.id } });
     await prisma.tournament.delete({ where: { id: req.params.id } });
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.TOURNAMENT_DELETE,
+      entity: 'Tournament',
+      entityId: req.params.id,
+      metadata: existing ? { name: existing.name, game: existing.game } : undefined,
+    });
     res.status(204).end();
   } catch (e) {
     next(e);

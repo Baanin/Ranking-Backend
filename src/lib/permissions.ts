@@ -8,6 +8,7 @@ export const PERMISSIONS = {
   MANAGE_RESULTS: 'MANAGE_RESULTS',
   MANAGE_USERS: 'MANAGE_USERS',
   VIEW_ADMIN_PANEL: 'VIEW_ADMIN_PANEL',
+  VIEW_AUDIT_LOGS: 'VIEW_AUDIT_LOGS',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -25,6 +26,7 @@ export const ROLE_DEFAULTS: Record<string, Permission[]> = {
     PERMISSIONS.MANAGE_PLAYERS,
     PERMISSIONS.MANAGE_RESULTS,
   ],
+  AUDITOR: [PERMISSIONS.VIEW_ADMIN_PANEL, PERMISSIONS.VIEW_AUDIT_LOGS],
 };
 
 export function parsePermissions(csv: string): Permission[] {

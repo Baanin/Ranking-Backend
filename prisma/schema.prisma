@@ -69,6 +69,24 @@ model RefreshToken {
   @@index([userId])
 }
 
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String   // e.g. AUTH_LOGIN_SUCCESS, ADMIN_USER_CREATE, TOURNAMENT_DELETE
+  entity      String?  // e.g. AdminUser, Tournament, Player
+  entityId    String?
+  actorId     String?  // AdminUser.id — null for anonymous (failed login)
+  actorEmail  String?  // snapshot, survives admin deletion
+  ipAddress   String?
+  userAgent   String?
+  metadata    String?  // JSON-encoded additional context
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId])
+  @@index([action])
+  @@index([entity, entityId])
+}
+
 model Participation {
   id           String     @id @default(cuid())
   tournamentId String

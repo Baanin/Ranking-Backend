@@ -8,6 +8,7 @@ import {
   serializePermissions,
   type Permission,
 } from '@/lib/permissions';
+import { AUDIT_ACTIONS, logAudit } from '@/lib/audit';
 import { HttpError } from '@/middleware/errorHandler';
 import { requireAuth, requirePermission } from '@/middleware/auth';
 
@@ -99,6 +100,17 @@ router.post('/', async (req, res, next) => {
         permissions: serializePermissions(body.permissions),
       },
     });
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.ADMIN_USER_CREATE,
+      entity: 'AdminUser',
+      entityId: user.id,
+      metadata: {
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        permissions: body.permissions,
+      },
+    });
     res.status(201).json({ data: toDto(user) });
   } catch (e) {
     next(e);
@@ -166,6 +178,21 @@ router.patch('/:id', async (req, res, next) => {
       where: { id: target.id },
       data,
     });
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.ADMIN_USER_UPDATE,
+      entity: 'AdminUser',
+      entityId: user.id,
+      metadata: {
+        targetEmail: user.email,
+        changes: {
+          ...(body.name !== undefined && { name: body.name }),
+          ...(body.role !== undefined && { role: body.role }),
+          ...(body.permissions !== undefined && { permissions: body.permissions }),
+          ...(body.isActive !== undefined && { isActive: body.isActive }),
+          ...(body.password !== undefined && { password: '***changed***' }),
+        },
+      },
+    });
     res.json({ data: toDto(user) });
   } catch (e) {
     next(e);
@@ -197,6 +224,12 @@ router.delete('/:id', async (req, res, next) => {
     }
 
     await prisma.adminUser.delete({ where: { id: target.id } });
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.ADMIN_USER_DELETE,
+      entity: 'AdminUser',
+      entityId: target.id,
+      metadata: { email: target.email, name: target.name, role: target.role },
+    });
     res.status(204).end();
   } catch (e) {
     next(e);
