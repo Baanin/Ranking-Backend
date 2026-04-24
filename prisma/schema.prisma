@@ -1,0 +1,56 @@
+// Prisma schema file — https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id                 String              @id @default(cuid())
+  tag                String              @unique
+  name               String
+  country            String
+  mainGame           String
+  character          String
+  avatarColor        String              @default("from-red-500 to-orange-500")
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  participations     Participation[]
+  wonTournaments     Tournament[]        @relation("TournamentWinner")
+}
+
+model Tournament {
+  id             String          @id @default(cuid())
+  name           String
+  game           String
+  date           DateTime
+  location       String
+  participants   Int             @default(0)
+  status         String          @default("upcoming") // upcoming | ongoing | completed
+  prizePool      String?
+  winnerId       String?
+  winner         Player?         @relation("TournamentWinner", fields: [winnerId], references: [id])
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  entries        Participation[]
+}
+
+model Participation {
+  id           String     @id @default(cuid())
+  tournamentId String
+  playerId     String
+  placement    Int
+  pointsEarned Int        @default(0)
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, playerId])
+  @@index([playerId])
+}

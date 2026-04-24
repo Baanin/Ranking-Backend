@@ -1,0 +1,77 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { prisma } from '@/lib/prisma';
+import { HttpError } from '@/middleware/errorHandler';
+
+const router = Router();
+
+const tournamentCreateSchema = z.object({
+  name: z.string().min(3),
+  game: z.string(),
+  date: z.string().datetime().or(z.string()),
+  location: z.string(),
+  participants: z.number().int().nonnegative().optional(),
+  status: z.enum(['upcoming', 'ongoing', 'completed']).optional(),
+  prizePool: z.string().optional(),
+  winnerId: z.string().optional(),
+});
+
+// GET /api/tournaments?status=upcoming
+router.get('/', async (req, res, next) => {
+  try {
+    const status = req.query.status as string | undefined;
+    const tournaments = await prisma.tournament.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { date: 'desc' },
+      include: { winner: true },
+    });
+    res.json({ data: tournaments });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// GET /api/tournaments/:id
+router.get('/:id', async (req, res, next) => {
+  try {
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: req.params.id },
+      include: {
+        winner: true,
+        entries: {
+          include: { player: true },
+          orderBy: { placement: 'asc' },
+        },
+      },
+    });
+    if (!tournament) throw new HttpError(404, 'Tournament not found');
+    res.json({ data: tournament });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// POST /api/tournaments
+router.post('/', async (req, res, next) => {
+  try {
+    const body = tournamentCreateSchema.parse(req.body);
+    const tournament = await prisma.tournament.create({
+      data: { ...body, date: new Date(body.date) },
+    });
+    res.status(201).json({ data: tournament });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// DELETE /api/tournaments/:id
+router.delete('/:id', async (req, res, next) => {
+  try {
+    await prisma.tournament.delete({ where: { id: req.params.id } });
+    res.status(204).end();
+  } catch (e) {
+    next(e);
+  }
+});
+
+export default router;
