@@ -6,7 +6,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "tsc && tsc-alias",
     "start": "node dist/server.js",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
@@ -27,7 +27,7 @@
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.0",
+    "@types/express": "^4.17.21",
     "@types/morgan": "^1.9.9",
     "@types/node": "^22.9.0",
     "@typescript-eslint/eslint-plugin": "^8.14.0",
@@ -36,6 +36,7 @@
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.3.3",
     "prisma": "^5.22.0",
+    "tsc-alias": "^1.8.10",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3"
   },
