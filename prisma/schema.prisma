@@ -9,45 +9,128 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Player {
-  id                 String              @id @default(cuid())
-  tag                String              @unique
-  name               String
-  country            String
-  mainGame           String
-  character          String
-  avatarColor        String              @default("from-red-500 to-orange-500")
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+// ---------------------------------------------------------------------------
+// Core domain: Games, Seasons, Tournaments, Players, Participations
+// ---------------------------------------------------------------------------
 
-  participations     Participation[]
-  wonTournaments     Tournament[]        @relation("TournamentWinner")
+model Game {
+  id         String   @id @default(cuid())
+  name       String   @unique            // "Street Fighter 6"
+  slug       String   @unique            // "sf6"
+  startggId  Int?     @unique            // start.gg videogame ID (for auto-matching on import)
+  iconColor  String   @default("from-red-500 to-orange-500")
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tournaments Tournament[]
+  seasons     Season[]
+
+  @@index([isActive])
+}
+
+model Season {
+  id         String   @id @default(cuid())
+  name       String                       // "SF6 Season 2025", "Tekken Summer League"
+  gameId     String
+  game       Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  startDate  DateTime
+  endDate    DateTime
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tournaments Tournament[]
+
+  @@unique([gameId, name])
+  @@index([gameId, isActive])
+  @@index([startDate, endDate])
 }
 
 model Tournament {
-  id             String          @id @default(cuid())
+  id             String    @id @default(cuid())
   name           String
-  game           String
   date           DateTime
   location       String
-  participants   Int             @default(0)
-  status         String          @default("upcoming") // upcoming | ongoing | completed
+  numEntrants    Int       @default(0)
+  status         String    @default("upcoming") // upcoming | ongoing | completed
   prizePool      String?
+
+  // start.gg link (nullable: some tournaments may be legacy / manual)
+  startggSlug    String?   @unique             // ex: "tournament/genesis-9/event/ultimate-singles"
+  startggEventId Int?      @unique
+  lastSyncedAt   DateTime?
+
+  gameId         String
+  game           Game      @relation(fields: [gameId], references: [id])
+  seasonId       String
+  season         Season    @relation(fields: [seasonId], references: [id])
+
   winnerId       String?
-  winner         Player?         @relation("TournamentWinner", fields: [winnerId], references: [id])
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  winner         Player?   @relation("TournamentWinner", fields: [winnerId], references: [id])
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   entries        Participation[]
+
+  @@index([gameId, seasonId])
+  @@index([date])
+  @@index([status])
 }
+
+model Player {
+  id            String    @id @default(cuid())
+  tag           String                          // gamertag / prefix
+  name          String?                         // real name (optional)
+  country       String                          // ISO 3166-1 alpha-2
+  avatarColor   String    @default("from-red-500 to-orange-500")
+
+  // start.gg identity
+  startggUserId Int?      @unique               // numeric user ID
+  startggSlug   String?   @unique               // "user/xxxxxxxx"
+
+  // Support future dedup / merging
+  mergedIntoId  String?
+  mergedInto    Player?   @relation("PlayerMerge", fields: [mergedIntoId], references: [id])
+  mergedFrom    Player[]  @relation("PlayerMerge")
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  participations  Participation[]
+  wonTournaments  Tournament[]    @relation("TournamentWinner")
+
+  @@unique([tag, country])
+  @@index([tag])
+}
+
+model Participation {
+  id           String     @id @default(cuid())
+  tournamentId String
+  playerId     String
+  placement    Int
+  pointsEarned Int        @default(0)
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, playerId])
+  @@index([playerId])
+  @@index([tournamentId, placement])
+}
+
+// ---------------------------------------------------------------------------
+// Admin / auth / audit (unchanged from previous steps)
+// ---------------------------------------------------------------------------
 
 model AdminUser {
   id            String         @id @default(cuid())
   email         String         @unique
   passwordHash  String
   name          String
-  role          String         @default("ADMIN") // ADMIN | MODERATOR | ...
-  permissions   String         @default("") // CSV of permission codes
+  role          String         @default("ADMIN")
+  permissions   String         @default("")
   isActive      Boolean        @default(true)
   lastLoginAt   DateTime?
   createdAt     DateTime       @default(now())
@@ -71,32 +154,18 @@ model RefreshToken {
 
 model AuditLog {
   id          String   @id @default(cuid())
-  action      String   // e.g. AUTH_LOGIN_SUCCESS, ADMIN_USER_CREATE, TOURNAMENT_DELETE
-  entity      String?  // e.g. AdminUser, Tournament, Player
+  action      String
+  entity      String?
   entityId    String?
-  actorId     String?  // AdminUser.id — null for anonymous (failed login)
-  actorEmail  String?  // snapshot, survives admin deletion
+  actorId     String?
+  actorEmail  String?
   ipAddress   String?
   userAgent   String?
-  metadata    String?  // JSON-encoded additional context
+  metadata    String?
   createdAt   DateTime @default(now())
 
   @@index([createdAt])
   @@index([actorId])
   @@index([action])
   @@index([entity, entityId])
-}
-
-model Participation {
-  id           String     @id @default(cuid())
-  tournamentId String
-  playerId     String
-  placement    Int
-  pointsEarned Int        @default(0)
-
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
-
-  @@unique([tournamentId, playerId])
-  @@index([playerId])
 }

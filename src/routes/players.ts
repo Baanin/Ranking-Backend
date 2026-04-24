@@ -9,20 +9,31 @@ const router = Router();
 
 const canManagePlayers = [requireAuth, requirePermission('MANAGE_PLAYERS')];
 
-const playerCreateSchema = z.object({
-  tag: z.string().min(2).max(32),
-  name: z.string().min(2),
-  country: z.string().length(2),
-  mainGame: z.string(),
-  character: z.string(),
+const playerUpdateSchema = z.object({
+  tag: z.string().min(1).max(64).optional(),
+  name: z.string().nullable().optional(),
+  country: z.string().length(2).optional(),
   avatarColor: z.string().optional(),
+  startggUserId: z.number().int().nullable().optional(),
+  startggSlug: z.string().nullable().optional(),
 });
 
 // GET /api/players
-router.get('/', async (_req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
+    const q = (req.query.q as string | undefined)?.trim();
     const players = await prisma.player.findMany({
+      where: q
+        ? {
+            OR: [
+              { tag: { contains: q } },
+              { name: { contains: q } },
+              { startggSlug: { contains: q } },
+            ],
+          }
+        : undefined,
       orderBy: { tag: 'asc' },
+      take: 200,
     });
     res.json({ data: players });
   } catch (e) {
@@ -37,7 +48,9 @@ router.get('/:id', async (req, res, next) => {
       where: { id: req.params.id },
       include: {
         participations: {
-          include: { tournament: true },
+          include: {
+            tournament: { include: { game: true, season: true } },
+          },
           orderBy: { tournament: { date: 'desc' } },
         },
       },
@@ -49,33 +62,41 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-// POST /api/players
-router.post('/', canManagePlayers, async (req, res, next) => {
+/**
+ * PATCH /api/players/:id
+ * Manual edits: fix tag typos, set country, attach startgg identity, etc.
+ * New players are usually created automatically during tournament import.
+ */
+router.patch('/:id', canManagePlayers, async (req, res, next) => {
   try {
-    const body = playerCreateSchema.parse(req.body);
-    const player = await prisma.player.create({ data: body });
+    const body = playerUpdateSchema.parse(req.body);
+    const player = await prisma.player.update({
+      where: { id: req.params.id },
+      data: body,
+    });
     await logAudit(req, {
-      action: AUDIT_ACTIONS.PLAYER_CREATE,
+      action: AUDIT_ACTIONS.PLAYER_UPDATE,
       entity: 'Player',
       entityId: player.id,
-      metadata: { tag: player.tag, name: player.name, mainGame: player.mainGame },
+      metadata: { changes: body },
     });
-    res.status(201).json({ data: player });
+    res.json({ data: player });
   } catch (e) {
     next(e);
   }
 });
 
-// DELETE /api/players/:id
+// DELETE /api/players/:id — be careful: cascades to participations
 router.delete('/:id', canManagePlayers, async (req, res, next) => {
   try {
     const existing = await prisma.player.findUnique({ where: { id: req.params.id } });
+    if (!existing) throw new HttpError(404, 'Player not found');
     await prisma.player.delete({ where: { id: req.params.id } });
     await logAudit(req, {
       action: AUDIT_ACTIONS.PLAYER_DELETE,
       entity: 'Player',
       entityId: req.params.id,
-      metadata: existing ? { tag: existing.tag, name: existing.name } : undefined,
+      metadata: { tag: existing.tag, name: existing.name, startggSlug: existing.startggSlug },
     });
     res.status(204).end();
   } catch (e) {
