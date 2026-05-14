@@ -29,6 +29,16 @@ export function errorHandler(
     return;
   }
 
+  if (
+    typeof err === 'object' &&
+    err !== null &&
+    'type' in err &&
+    (err as { type: string }).type === 'entity.too.large'
+  ) {
+    res.status(413).json({ error: 'Payload Too Large' });
+    return;
+  }
+
   console.error('[Unhandled error]', err);
   res.status(500).json({ error: 'Internal Server Error' });
 }
