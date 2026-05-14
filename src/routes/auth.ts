@@ -30,7 +30,7 @@ function cookieOptions() {
   return {
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? ('none' as const) : ('lax' as const),
+    sameSite: isProd ? ('strict' as const) : ('lax' as const),
     maxAge: REFRESH_COOKIE_MAX_AGE,
     path: '/api/auth',
   };
