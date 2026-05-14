@@ -113,7 +113,7 @@ async function runImport(
   const rules = await getPointsRules();
 
   const tournamentData = {
-    name: event.name,
+    name: event.tournament.name,
     date: event.startAt ? new Date(event.startAt * 1000) : new Date(),
     location: buildLocation(event),
     numEntrants,
