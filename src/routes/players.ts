@@ -41,6 +41,82 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// POST /api/players/:id/merge  { targetId: string }
+// Merges the source player (id) INTO the target player (targetId).
+// - Participations of source are moved to target (conflicts: keep best placement)
+// - Tournament wins pointing to source are updated to target
+// - Source is soft-deleted via mergedIntoId
+router.post('/:id/merge', canManagePlayers, async (req, res, next) => {
+  try {
+    const sourceId = req.params.id;
+    const { targetId } = z.object({ targetId: z.string().min(1) }).parse(req.body);
+
+    if (sourceId === targetId) throw new HttpError(400, 'Cannot merge a player with themselves');
+
+    const [source, target] = await Promise.all([
+      prisma.player.findUnique({ where: { id: sourceId }, include: { participations: true } }),
+      prisma.player.findUnique({ where: { id: targetId } }),
+    ]);
+    if (!source) throw new HttpError(404, 'Source player not found');
+    if (!target) throw new HttpError(404, 'Target player not found');
+    if (source.mergedIntoId) throw new HttpError(400, 'Source player is already merged');
+
+    // Existing tournament IDs of target
+    const targetParticipations = await prisma.participation.findMany({
+      where: { playerId: targetId },
+      select: { tournamentId: true },
+    });
+    const targetTournamentIds = new Set(targetParticipations.map((p) => p.tournamentId));
+
+    await prisma.$transaction(async (tx) => {
+      for (const p of source.participations) {
+        if (targetTournamentIds.has(p.tournamentId)) {
+          // Conflict: keep the entry with the best (lowest) placement, delete the other
+          const existing = await tx.participation.findUnique({
+            where: { tournamentId_playerId: { tournamentId: p.tournamentId, playerId: targetId } },
+          });
+          if (existing && p.placement < existing.placement) {
+            await tx.participation.delete({
+              where: { tournamentId_playerId: { tournamentId: p.tournamentId, playerId: targetId } },
+            });
+            await tx.participation.update({
+              where: { id: p.id },
+              data: { playerId: targetId },
+            });
+          } else {
+            await tx.participation.delete({ where: { id: p.id } });
+          }
+        } else {
+          await tx.participation.update({ where: { id: p.id }, data: { playerId: targetId } });
+        }
+      }
+
+      // Reassign tournament wins
+      await tx.tournament.updateMany({
+        where: { winnerId: sourceId },
+        data: { winnerId: targetId },
+      });
+
+      // Soft-delete source
+      await tx.player.update({
+        where: { id: sourceId },
+        data: { mergedIntoId: targetId },
+      });
+    });
+
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.PLAYER_MERGE,
+      entity: 'Player',
+      entityId: sourceId,
+      metadata: { sourceTag: source.tag, targetId, targetTag: target.tag },
+    });
+
+    res.json({ data: { sourceId, targetId, participationsMerged: source.participations.length } });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // GET /api/players/:id/results?gameId=&seasonId=
 router.get('/:id/results', async (req, res, next) => {
   try {
