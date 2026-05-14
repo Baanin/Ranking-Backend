@@ -12,6 +12,7 @@ import seasonsRouter from '@/routes/seasons';
 import playersRouter from '@/routes/players';
 import tournamentsRouter from '@/routes/tournaments';
 import rankingsRouter from '@/routes/rankings';
+import scoringRouter from '@/routes/scoring';
 import { errorHandler, notFoundHandler } from '@/middleware/errorHandler';
 import { apiRateLimiter } from '@/middleware/rateLimit';
 
@@ -51,6 +52,7 @@ export function createApp() {
   app.use('/api/players', playersRouter);
   app.use('/api/tournaments', tournamentsRouter);
   app.use('/api/rankings', rankingsRouter);
+  app.use('/api/scoring-rules', scoringRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

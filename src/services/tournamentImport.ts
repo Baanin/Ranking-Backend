@@ -5,7 +5,7 @@ import {
   type StartggEvent,
   type StartggStandingEntrant,
 } from '@/lib/startgg';
-import { computePoints } from '@/lib/ranking';
+import { getPointsRules, computePointsSync } from '@/lib/ranking';
 import { HttpError } from '@/middleware/errorHandler';
 
 export interface ImportResult {
@@ -110,6 +110,7 @@ async function runImport(
 
   const numEntrants = event.numEntrants ?? standings.length;
   const status = mapEventState(event.state);
+  const rules = await getPointsRules();
 
   const tournamentData = {
     name: event.name,
@@ -143,7 +144,7 @@ async function runImport(
         tournamentId: t.id,
         playerId: p.playerId,
         placement: p.placement,
-        pointsEarned: computePoints(p.placement, numEntrants),
+        pointsEarned: computePointsSync(p.placement, numEntrants, rules),
       })),
     });
 

@@ -121,6 +121,20 @@ model Participation {
 }
 
 // ---------------------------------------------------------------------------
+// Scoring / points configuration
+// ---------------------------------------------------------------------------
+
+model PointsRule {
+  id           String   @id @default(cuid())
+  label        String
+  placementMin Int
+  placementMax Int
+  points       Int
+  sortOrder    Int
+  updatedAt    DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
 // Admin / auth / audit (unchanged from previous steps)
 // ---------------------------------------------------------------------------
 
