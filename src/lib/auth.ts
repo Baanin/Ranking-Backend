@@ -26,7 +26,7 @@ export async function verifyPassword(plain: string, hash: string): Promise<boole
 }
 
 export function signAccessToken(payload: AccessTokenPayload): string {
-  return jwt.sign(payload, ACCESS_SECRET, { expiresIn: ACCESS_EXPIRES_IN });
+  return jwt.sign(payload, ACCESS_SECRET, { expiresIn: ACCESS_EXPIRES_IN as never });
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
