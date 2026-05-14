@@ -41,6 +41,42 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// GET /api/players/:id/results?gameId=&seasonId=
+router.get('/:id/results', async (req, res, next) => {
+  try {
+    const gameId = req.query.gameId as string | undefined;
+    const seasonId = req.query.seasonId as string | undefined;
+
+    const participations = await prisma.participation.findMany({
+      where: {
+        playerId: req.params.id,
+        tournament: {
+          ...(gameId ? { gameId } : {}),
+          ...(seasonId ? { seasonId } : {}),
+        },
+      },
+      include: {
+        tournament: { select: { id: true, name: true, date: true, numEntrants: true } },
+      },
+      orderBy: { tournament: { date: 'desc' } },
+      take: 20,
+    });
+
+    const data = participations.map((p) => ({
+      tournamentId: p.tournament.id,
+      tournamentName: p.tournament.name,
+      date: p.tournament.date,
+      placement: p.placement,
+      points: p.pointsEarned,
+      numEntrants: p.tournament.numEntrants,
+    }));
+
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // GET /api/players/:id
 router.get('/:id', async (req, res, next) => {
   try {
